@@ -5,6 +5,9 @@ TITLE = "Mario's All-Nighter: Survivors"
 
 # Player default properties
 PLAYER_SPEED = 5
+DASH_SPEED = 16
+DASH_DURATION_MS = 130
+DASH_COOLDOWN_MS = 850
 PROJECTILE_SPEED = 15
 FIRE_RATE = 500 # ms between shots
 PROJECTILE_DAMAGE = 1

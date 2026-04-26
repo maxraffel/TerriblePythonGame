@@ -58,6 +58,16 @@ class UI:
             15,
         )
 
+        now = pygame.time.get_ticks()
+        p = self.game.player
+        if now < p.dash_until:
+            self.draw_text("DASH", 18, CYAN, 80, 42)
+        elif now < p.dash_cooldown_until:
+            left = (p.dash_cooldown_until - now) / 1000.0
+            self.draw_text(f"Dash: {left:.1f}s", 18, (160, 160, 175), 80, 42)
+        else:
+            self.draw_text("Dash: ready", 18, (140, 200, 160), 80, 42)
+
         # XP Bar
         bar_width = WIDTH * 0.8
         bar_height = 10
@@ -263,7 +273,13 @@ class UI:
         while self.game.running:
             self.game.screen.fill(BGCOLOR)
             self.draw_text("MARIO'S ALL-NIGHTER: SURVIVORS", 48, WHITE, WIDTH / 2, HEIGHT / 4)
-            self.draw_text("WASD to move! You will shoot automatically.", 22, WHITE, WIDTH / 2, HEIGHT / 2)
+            self.draw_text(
+                "WASD to move! SHIFT to dash. You shoot automatically.",
+                22,
+                WHITE,
+                WIDTH / 2,
+                HEIGHT / 2,
+            )
             self.draw_text("Collect blue gems to level up and gold coins for the shop.", 22, YELLOW, WIDTH / 2, HEIGHT * 5 / 8)
             self.draw_text(
                 f"Your coins: {self.game.global_coins}",

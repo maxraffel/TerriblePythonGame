@@ -203,6 +203,9 @@ class Game:
                     self.select_upgrade(1)
                 elif event.key == pygame.K_3:
                     self.select_upgrade(2)
+            elif event.type == pygame.KEYDOWN and not self.is_leveling_up:
+                if event.key == pygame.K_LSHIFT:
+                    self.player.try_dash()
 
     def update(self):
         self.spawn_manager.update()

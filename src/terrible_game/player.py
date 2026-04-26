@@ -32,6 +32,11 @@ class Player(pygame.sprite.Sprite):
         self.powerup_time = 0
         self.teleport_lock_until = 0
 
+        self.dash_until = 0
+        self.dash_cooldown_until = 0
+        self.dash_dir = vec(1, 0)
+        self.last_facing = vec(1, 0)
+
         # XP and Upgrades
         self.level = 1
         self.xp = 0
@@ -57,28 +62,57 @@ class Player(pygame.sprite.Sprite):
             self.next_level_xp = int(self.next_level_xp * 1.5)
             self.game.trigger_level_up()
 
+    def _move_input_normalized(self, keys):
+        m = vec(0, 0)
+        if keys[pygame.K_LEFT] or keys[pygame.K_a]:
+            m.x -= 1
+        if keys[pygame.K_RIGHT] or keys[pygame.K_d]:
+            m.x += 1
+        if keys[pygame.K_UP] or keys[pygame.K_w]:
+            m.y -= 1
+        if keys[pygame.K_DOWN] or keys[pygame.K_s]:
+            m.y += 1
+        if m.length_squared() > 0:
+            return m.normalize()
+        return m
+
+    def try_dash(self):
+        now = pygame.time.get_ticks()
+        if now < self.dash_cooldown_until or now < self.dash_until:
+            return
+        keys = pygame.key.get_pressed()
+        d = self._move_input_normalized(keys)
+        if d.length_squared() < 0.0001:
+            d = self.last_facing
+        if d.length_squared() < 0.0001:
+            d = vec(1, 0)
+        self.dash_dir = d.normalize()
+        self.dash_until = now + DASH_DURATION_MS
+        self.dash_cooldown_until = now + DASH_COOLDOWN_MS
+
     def update(self):
         if self.powerup and pygame.time.get_ticks() > self.powerup_time:
             self.powerup = None
 
-        self.vel = vec(0, 0)
+        now = pygame.time.get_ticks()
         keys = pygame.key.get_pressed()
-        
+        move = self._move_input_normalized(keys)
+        if move.length_squared() > 0:
+            self.last_facing = move
+
         speed = PLAYER_SPEED * self.passive_stats.get('speed_mult', 1.0)
         if self.powerup == 'speed':
             speed *= 2
 
-        if keys[pygame.K_LEFT] or keys[pygame.K_a]:
-            self.vel.x = -speed
-        if keys[pygame.K_RIGHT] or keys[pygame.K_d]:
-            self.vel.x = speed
-        if keys[pygame.K_UP] or keys[pygame.K_w]:
-            self.vel.y = -speed
-        if keys[pygame.K_DOWN] or keys[pygame.K_s]:
-            self.vel.y = speed
+        if now < self.dash_until:
+            dash_speed = DASH_SPEED * self.passive_stats.get('speed_mult', 1.0)
+            if self.powerup == 'speed':
+                dash_speed *= 1.15
+            self.vel = self.dash_dir * dash_speed
+            self.pos += self.vel
+            self.rect.center = self.pos
+            return
 
-        if self.vel.length() > 0:
-            self.vel = self.vel.normalize() * speed
-
+        self.vel = move * speed
         self.pos += self.vel
         self.rect.center = self.pos
