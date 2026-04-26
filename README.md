@@ -34,8 +34,8 @@ A simple Python game built with Pygame.
 
 ## Running the Game
 
-To start the game, simply run the `main.py` file:
+To start the game, simply run the `run.py` script:
 
 ```bash
-python main.py
+python run.py
 ```
