@@ -6,6 +6,18 @@ from .sprites import Projectile
 
 vec = pygame.math.Vector2
 
+
+def _nearest_enemy(game):
+    nearest = None
+    min_dist = float("inf")
+    for enemy in game.enemies:
+        d = game.player.pos.distance_to(enemy.pos)
+        if d < min_dist:
+            min_dist = d
+            nearest = enemy
+    return nearest
+
+
 class Weapon:
     ui_color = (140, 140, 150)
 
@@ -34,46 +46,33 @@ class PencilWand(Weapon):
         fire_rate = FIRE_RATE * max(0.2, (1.0 - (self.level * 0.05))) * self.game.player.passive_stats.get('firerate_mult', 1.0)
         return count, pierce, damage, fire_rate
 
+    def _aim_at(self, target):
+        base_dir = target.pos - self.game.player.pos
+        if base_dir.length() > 0:
+            return base_dir.normalize()
+        return vec(1, 0)
+
+    def _emit_pencil_volley(self, count, pierce, damage, base_dir):
+        spread_angle = 15
+        grav = vec(0, PENCIL_GRAVITY)
+        cx, cy = self.game.player.rect.centerx, self.game.player.rect.centery
+        for i in range(count):
+            angle_offset = (i - (count - 1) / 2) * spread_angle
+            direction = base_dir.rotate(angle_offset)
+            p = Projectile(cx, cy, direction, pierce, damage, gravity=grav)
+            self.game.projectiles.add(p)
+            self.game.all_sprites.add(p)
+
     def update(self):
         now = pygame.time.get_ticks()
         count, pierce, damage, fire_rate = self.get_stats()
-        
-        if now - self.last_shot > fire_rate:
-            if not self.game.enemies:
-                return
-            
-            nearest_enemy = None
-            min_dist = float('inf')
-            for enemy in self.game.enemies:
-                dist = self.game.player.pos.distance_to(enemy.pos)
-                if dist < min_dist:
-                    min_dist = dist
-                    nearest_enemy = enemy
-                    
-            if nearest_enemy:
-                self.last_shot = now
-                base_dir = (nearest_enemy.pos - self.game.player.pos)
-                if base_dir.length() > 0:
-                    base_dir = base_dir.normalize()
-                else:
-                    base_dir = vec(1, 0)
-                
-                spread_angle = 15
-                
-                for i in range(count):
-                    angle_offset = (i - (count - 1) / 2) * spread_angle
-                    dir = base_dir.rotate(angle_offset)
-                    grav = vec(0, PENCIL_GRAVITY)
-                    p = Projectile(
-                        self.game.player.rect.centerx,
-                        self.game.player.rect.centery,
-                        dir,
-                        pierce,
-                        damage,
-                        gravity=grav,
-                    )
-                    self.game.projectiles.add(p)
-                    self.game.all_sprites.add(p)
+        if now - self.last_shot <= fire_rate or not self.game.enemies:
+            return
+        target = _nearest_enemy(self.game)
+        if not target:
+            return
+        self.last_shot = now
+        self._emit_pencil_volley(count, pierce, damage, self._aim_at(target))
 
 class BombExplosion(pygame.sprite.Sprite):
     def __init__(self, game, x, y, radius, damage):
@@ -241,17 +240,6 @@ class TextbookOrbit(Weapon):
             self.update_books()
 
 
-def _nearest_enemy(game):
-    nearest = None
-    min_dist = float("inf")
-    for enemy in game.enemies:
-        d = game.player.pos.distance_to(enemy.pos)
-        if d < min_dist:
-            min_dist = d
-            nearest = enemy
-    return nearest
-
-
 class USBBoomerangSprite(pygame.sprite.Sprite):
     def __init__(self, game, direction, damage):
         super().__init__()
@@ -268,16 +256,16 @@ class USBBoomerangSprite(pygame.sprite.Sprite):
         self.turn_back_ms = 600
         self.hit_cd = {}
 
-    def update(self):
-        now = pygame.time.get_ticks()
-        if now - self.spawn_time > self.turn_back_ms:
-            to_player = self.game.player.pos - self.pos
-            if to_player.length() > 0.01:
-                desired = to_player.normalize() * 9.0
-                self.vel = self.vel * 0.86 + desired * 0.14
-        self.pos += self.vel
-        self.rect.center = self.pos
+    def _apply_return_steering(self, now):
+        if now - self.spawn_time <= self.turn_back_ms:
+            return
+        to_player = self.game.player.pos - self.pos
+        if to_player.length() <= 0.01:
+            return
+        desired = to_player.normalize() * 9.0
+        self.vel = self.vel * 0.86 + desired * 0.14
 
+    def _hit_enemies_this_frame(self, now):
         hits = pygame.sprite.spritecollide(self, self.game.enemies, False)
         for enemy in hits:
             last = self.hit_cd.get(enemy, 0)
@@ -291,6 +279,12 @@ class USBBoomerangSprite(pygame.sprite.Sprite):
                 self.game.player.score += 50
         self.hit_cd = {e: t for e, t in self.hit_cd.items() if e.alive()}
 
+    def update(self):
+        now = pygame.time.get_ticks()
+        self._apply_return_steering(now)
+        self.pos += self.vel
+        self.rect.center = self.pos
+        self._hit_enemies_this_frame(now)
         if now - self.spawn_time > self.life_ms:
             self.kill()
 
@@ -568,3 +562,17 @@ class RulerWave(Weapon):
             p = Projectile(self.game.player.pos.x, self.game.player.pos.y, d.normalize(), 2, damage)
             self.game.projectiles.add(p)
             self.game.all_sprites.add(p)
+
+
+ALL_WEAPON_CLASSES = (
+    PencilWand,
+    CoffeeBomb,
+    TextbookOrbit,
+    MarkerSpray,
+    StaplerBurst,
+    CalculatorLaser,
+    USBBoomerang,
+    StickyNotes,
+    NotebookMissiles,
+    RulerWave,
+)

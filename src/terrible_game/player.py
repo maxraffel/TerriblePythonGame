@@ -57,28 +57,35 @@ class Player(pygame.sprite.Sprite):
             self.next_level_xp = int(self.next_level_xp * 1.5)
             self.game.trigger_level_up()
 
+    def _current_move_speed(self):
+        speed = PLAYER_SPEED * self.passive_stats.get("speed_mult", 1.0)
+        if self.powerup == "speed":
+            speed *= 2
+        return speed
+
+    @staticmethod
+    def _axis_from_keys(keys, neg_keys, pos_keys):
+        for k in neg_keys:
+            if keys[k]:
+                return -1
+        for k in pos_keys:
+            if keys[k]:
+                return 1
+        return 0
+
+    def _velocity_from_input(self, speed):
+        keys = pygame.key.get_pressed()
+        self.vel = vec(
+            speed * self._axis_from_keys(keys, (pygame.K_LEFT, pygame.K_a), (pygame.K_RIGHT, pygame.K_d)),
+            speed * self._axis_from_keys(keys, (pygame.K_UP, pygame.K_w), (pygame.K_DOWN, pygame.K_s)),
+        )
+        if self.vel.length() > 0:
+            self.vel = self.vel.normalize() * speed
+
     def update(self):
         if self.powerup and pygame.time.get_ticks() > self.powerup_time:
             self.powerup = None
 
-        self.vel = vec(0, 0)
-        keys = pygame.key.get_pressed()
-        
-        speed = PLAYER_SPEED * self.passive_stats.get('speed_mult', 1.0)
-        if self.powerup == 'speed':
-            speed *= 2
-
-        if keys[pygame.K_LEFT] or keys[pygame.K_a]:
-            self.vel.x = -speed
-        if keys[pygame.K_RIGHT] or keys[pygame.K_d]:
-            self.vel.x = speed
-        if keys[pygame.K_UP] or keys[pygame.K_w]:
-            self.vel.y = -speed
-        if keys[pygame.K_DOWN] or keys[pygame.K_s]:
-            self.vel.y = speed
-
-        if self.vel.length() > 0:
-            self.vel = self.vel.normalize() * speed
-
+        self._velocity_from_input(self._current_move_speed())
         self.pos += self.vel
         self.rect.center = self.pos
