@@ -7,6 +7,21 @@ from .sprites import Gem, Coin, EnergyDrink, Chest
 
 vec = pygame.math.Vector2
 
+
+def nearest_player_pos(game, from_pos):
+    players = [game.player]
+    if getattr(game, "player2", None):
+        players.append(game.player2)
+    best = players[0]
+    best_d = from_pos.distance_squared_to(best.pos)
+    for p in players[1:]:
+        d = from_pos.distance_squared_to(p.pos)
+        if d < best_d:
+            best = p
+            best_d = d
+    return best.pos
+
+
 class SleepMonster(pygame.sprite.Sprite):
     def __init__(self, game, x, y):
         super().__init__()
@@ -64,7 +79,8 @@ class SleepMonster(pygame.sprite.Sprite):
 
     def update(self):
         self._apply_kb_movement()
-        dir = self.game.player.pos - self.pos
+        tgt = nearest_player_pos(self.game, self.pos)
+        dir = tgt - self.pos
         if dir.length() > 0:
             dir = dir.normalize()
         self.pos += dir * self.speed
@@ -106,7 +122,7 @@ class SwarmMonster(SleepMonster):
 
     def update(self):
         self._apply_kb_movement()
-        to = self.game.player.pos - self.pos
+        to = nearest_player_pos(self.game, self.pos) - self.pos
         if to.length() > 0.01:
             self.momentum += to.normalize() * (self.steer * self.speed)
         self.momentum *= 0.9
@@ -129,7 +145,7 @@ class FlyingMonster(SleepMonster):
         
     def update(self):
         self._apply_kb_movement()
-        base_dir = self.game.player.pos - self.pos
+        base_dir = nearest_player_pos(self.game, self.pos) - self.pos
         if base_dir.length() > 0:
             base_dir = base_dir.normalize()
         ortho = vec(-base_dir.y, base_dir.x)
@@ -161,12 +177,12 @@ class DasherMonster(SleepMonster):
             if now - self.state_timer > self.aim_duration:
                 self.state = 'dashing'
                 self.state_timer = now
-                dir = self.game.player.pos - self.pos
+                dir = nearest_player_pos(self.game, self.pos) - self.pos
                 if dir.length() > 0:
                     self.dash_dir = dir.normalize()
             else:
                 # Slowly move towards player while aiming
-                dir = self.game.player.pos - self.pos
+                dir = nearest_player_pos(self.game, self.pos) - self.pos
                 if dir.length() > 0:
                     dir = dir.normalize()
                 self.pos += dir * (self.speed * 0.5)
@@ -196,8 +212,8 @@ class EnemyProjectile(pygame.sprite.Sprite):
         self.vel = target_dir * (PROJECTILE_SPEED * 0.5)
 
     def update(self):
-        if self.homing_strength > 0 and self.game and self.game.player:
-            to = self.game.player.pos - self.pos
+        if self.homing_strength > 0 and self.game:
+            to = nearest_player_pos(self.game, self.pos) - self.pos
             if to.length() > 8:
                 desired = to.normalize() * self.vel.length()
                 h = self.homing_strength
@@ -224,7 +240,7 @@ class ShooterMonster(SleepMonster):
     def update(self):
         self._apply_kb_movement()
         now = pygame.time.get_ticks()
-        dir = self.game.player.pos - self.pos
+        dir = nearest_player_pos(self.game, self.pos) - self.pos
         dist = dir.length()
         
         if dist > 0:
@@ -290,7 +306,7 @@ class BossMonster(SleepMonster):
 
     def update(self):
         self._apply_kb_movement()
-        dir = self.game.player.pos - self.pos
+        dir = nearest_player_pos(self.game, self.pos) - self.pos
         if dir.length() > 0:
             dir = dir.normalize()
         self.pos += dir * self.speed

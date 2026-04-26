@@ -40,16 +40,30 @@ class UI:
         
         self.draw_text(f"Time: {mins:02d}:{secs:02d}", 26, WHITE, WIDTH / 2, 40)
         self.draw_text(f"Zone: {current_zone['name']}", 22, WHITE, WIDTH / 2, 70)
-        self.draw_text(f"Score: {self.game.player.score}", 22, WHITE, WIDTH / 2, 15)
-        e = self.game.player.energy
-        em = self.game.player.max_energy
-        self.draw_text(
-            f"Energy: {int(e)}/{int(em)}",
-            22,
-            GREEN if e > 0.3 * em else RED,
-            80,
-            15,
-        )
+        players = self.game.get_players()
+        total_score = sum(p.score for p in players)
+        self.draw_text(f"Score: {total_score}", 22, WHITE, WIDTH / 2, 15)
+        if len(players) == 1:
+            e = players[0].energy
+            em = players[0].max_energy
+            self.draw_text(
+                f"P1 Energy: {int(e)}/{int(em)}",
+                20,
+                GREEN if e > 0.3 * em else RED,
+                80,
+                15,
+            )
+        else:
+            for i, pl in enumerate(players):
+                e, em = pl.energy, pl.max_energy
+                label = "P1" if pl.seat == 0 else "P2"
+                self.draw_text(
+                    f"{label} {int(e)}/{int(em)}",
+                    18,
+                    GREEN if e > 0.3 * em else RED,
+                    80,
+                    12 + i * 22,
+                )
         self.draw_text(
             f"Run coins: {self.game.session_coins}",
             18,
@@ -58,23 +72,31 @@ class UI:
             15,
         )
 
-        # XP Bar
-        bar_width = WIDTH * 0.8
-        bar_height = 10
+        # XP bars (stacked in coop)
+        bar_width = WIDTH * 0.78
+        bar_height = 8 if len(players) > 1 else 10
         x = (WIDTH - bar_width) / 2
-        y = 5
-        fill = (self.game.player.xp / self.game.player.next_level_xp) * bar_width
-        outline_rect = pygame.Rect(x, y, bar_width, bar_height)
-        fill_rect = pygame.Rect(x, y, fill, bar_height)
-        pygame.draw.rect(self.game.screen, BLUE, fill_rect)
-        pygame.draw.rect(self.game.screen, WHITE, outline_rect, 2)
-        self.draw_text(f"Lv {self.game.player.level}", 18, WHITE, WIDTH - 50, 2)
+        y0 = 4
+        for i, pl in enumerate(players):
+            y = y0 + i * (bar_height + 3)
+            fill = (pl.xp / pl.next_level_xp) * bar_width
+            outline_rect = pygame.Rect(x, y, bar_width, bar_height)
+            fill_rect = pygame.Rect(x, y, fill, bar_height)
+            col = BLUE if pl.seat == 0 else (80, 140, 220)
+            pygame.draw.rect(self.game.screen, col, fill_rect)
+            pygame.draw.rect(self.game.screen, WHITE, outline_rect, 1)
+            tag = "P1" if pl.seat == 0 else "P2"
+            self.draw_text(f"{tag} Lv{pl.level}", 14, WHITE, WIDTH - 55, y - 1)
 
-        if self.game.player.powerup:
-            time_left = max(0, (self.game.player.powerup_time - pygame.time.get_ticks()) // 1000)
-            name = "ESPRESSO SPEED" if self.game.player.powerup == 'speed' else "COFFEE SHIELD"
-            color = (255, 255, 0) if self.game.player.powerup == 'speed' else (0, 255, 255)
-            self.draw_text(f"{name}: {time_left}s", 26, color, WIDTH / 2, 110)
+        py = 108 if len(players) == 1 else 128
+        for pl in players:
+            if pl.powerup:
+                time_left = max(0, (pl.powerup_time - pygame.time.get_ticks()) // 1000)
+                name = "ESPRESSO SPEED" if pl.powerup == 'speed' else "COFFEE SHIELD"
+                color = (255, 255, 0) if pl.powerup == 'speed' else (0, 255, 255)
+                tag = "P1 " if pl.seat == 0 else "P2 "
+                self.draw_text(f"{tag}{name}: {time_left}s", 22, color, WIDTH / 2, py)
+                py += 26
 
         self._draw_weapon_loadout()
         self._draw_minimap()
@@ -90,7 +112,7 @@ class UI:
 
         g = self.game
         sc = g.screen
-        p = g.player.pos
+        anchor = g.camera_center()
         size = MINIMAP_SIZE
         margin = MINIMAP_MARGIN
         half = (size // 2) - 3
@@ -116,31 +138,37 @@ class UI:
             )
 
         for s in g.teleporters:
-            plot(self._sprite_world_pos(s) - p, (90, 210, 255), 2)
+            plot(self._sprite_world_pos(s) - anchor, (90, 210, 255), 2)
         for s in g.gems:
-            plot(self._sprite_world_pos(s) - p, (50, 110, 255), 2)
+            plot(self._sprite_world_pos(s) - anchor, (50, 110, 255), 2)
         for s in g.coins:
-            plot(self._sprite_world_pos(s) - p, (255, 210, 70), 2)
+            plot(self._sprite_world_pos(s) - anchor, (255, 210, 70), 2)
         for s in g.items:
-            rel = self._sprite_world_pos(s) - p
+            rel = self._sprite_world_pos(s) - anchor
             if getattr(s, "type", None) == "chest":
                 plot(rel, (170, 110, 55), 3)
             else:
                 plot(rel, (110, 220, 150), 2)
         for s in g.all_sprites:
             if isinstance(s, DroppedBomb):
-                plot(self._sprite_world_pos(s) - p, (255, 95, 40), 2)
+                plot(self._sprite_world_pos(s) - anchor, (255, 95, 40), 2)
         for s in g.enemies:
-            plot(self._sprite_world_pos(s) - p, (255, 75, 75), 3)
+            plot(self._sprite_world_pos(s) - anchor, (255, 75, 75), 3)
         for s in g.enemy_projectiles:
-            plot(self._sprite_world_pos(s) - p, (255, 180, 130), 2)
+            plot(self._sprite_world_pos(s) - anchor, (255, 180, 130), 2)
 
-        pygame.draw.circle(sc, (255, 255, 120), (cx, cy), 4)
-        pygame.draw.circle(sc, (40, 40, 50), (cx, cy), 4, 1)
+        for pl in g.get_players():
+            rel = pl.pos - anchor
+            col = (255, 255, 110) if pl.seat == 0 else (120, 200, 255)
+            plot(rel, col, 4)
 
         title = pygame.font.Font(self.font_name, 12)
         sc.blit(
-            title.render("Minimap (relative to you)", True, (150, 155, 170)),
+            title.render(
+                "Minimap (camera / squad center)" if len(g.get_players()) > 1 else "Minimap (relative to you)",
+                True,
+                (150, 155, 170),
+            ),
             (ax + 4, ay + 4),
         )
         key = pygame.font.Font(self.font_name, 9)
@@ -154,21 +182,25 @@ class UI:
         )
 
     def _draw_weapon_loadout(self):
-        font = pygame.font.Font(self.font_name, 16)
-        wps = self.game.player.weapons
-        panel = 8
-        block = 24 * max(1, len(wps)) + 28
+        font = pygame.font.Font(self.font_name, 15)
+        players = self.game.get_players()
+        max_w = max(len(p.weapons) for p in players)
+        block = 24 * max(1, max_w) + 30
         y0 = HEIGHT - block
-        self.game.screen.blit(font.render("Loadout", True, (220, 220, 200)), (panel, y0))
-        for i, w in enumerate(wps):
-            y = y0 + 22 + i * 24
-            col = getattr(w, "ui_color", (150, 150, 150))
-            pygame.draw.rect(self.game.screen, col, (panel, y, 16, 16))
-            pygame.draw.rect(self.game.screen, WHITE, (panel, y, 16, 16), 1)
-            self.game.screen.blit(
-                font.render(f"{w.name}  Lv {w.level}", True, WHITE),
-                (panel + 22, y - 1),
-            )
+        col_x = [8, 280] if len(players) > 1 else [8]
+        for pi, pl in enumerate(players):
+            panel = col_x[pi]
+            tag = "P1 loadout" if pl.seat == 0 else "P2 loadout"
+            self.game.screen.blit(font.render(tag, True, (220, 220, 200)), (panel, y0))
+            for i, w in enumerate(pl.weapons):
+                y = y0 + 22 + i * 24
+                col = getattr(w, "ui_color", (150, 150, 150))
+                pygame.draw.rect(self.game.screen, col, (panel, y, 16, 16))
+                pygame.draw.rect(self.game.screen, WHITE, (panel, y, 16, 16), 1)
+                self.game.screen.blit(
+                    font.render(f"{w.name}  Lv {w.level}", True, WHITE),
+                    (panel + 22, y - 1),
+                )
 
     def draw_level_up(self):
         overlay = pygame.Surface((WIDTH, HEIGHT))
@@ -177,7 +209,23 @@ class UI:
         self.game.screen.blit(overlay, (0, 0))
 
         self.draw_text("LEVEL UP!", 64, YELLOW, WIDTH / 2, HEIGHT / 4 - 50)
-        self.draw_text("Press 1, 2, or 3 to select an upgrade", 22, WHITE, WIDTH / 2, HEIGHT / 4 + 30)
+        subj = getattr(self.game, "level_up_player", self.game.player)
+        if getattr(self.game, "player2", None) and subj is self.game.player2:
+            self.draw_text(
+                "Player 2 (arrows): press I, O, or P  (or keypad 1–3)",
+                20,
+                (180, 220, 255),
+                WIDTH / 2,
+                HEIGHT / 4 + 18,
+            )
+        else:
+            self.draw_text(
+                "Player 1 (WASD): press 1, 2, or 3",
+                20,
+                WHITE,
+                WIDTH / 2,
+                HEIGHT / 4 + 18,
+            )
 
         for i, option in enumerate(self.game.upgrade_options):
             title, desc, _ = option
@@ -263,7 +311,7 @@ class UI:
         while self.game.running:
             self.game.screen.fill(BGCOLOR)
             self.draw_text("MARIO'S ALL-NIGHTER: SURVIVORS", 48, WHITE, WIDTH / 2, HEIGHT / 4)
-            self.draw_text("WASD to move! You will shoot automatically.", 22, WHITE, WIDTH / 2, HEIGHT / 2)
+            self.draw_text("WASD = Player 1  |  Arrow keys = Player 2 (coop)", 20, WHITE, WIDTH / 2, HEIGHT / 2)
             self.draw_text("Collect blue gems to level up and gold coins for the shop.", 22, YELLOW, WIDTH / 2, HEIGHT * 5 / 8)
             self.draw_text(
                 f"Your coins: {self.game.global_coins}",
@@ -272,6 +320,14 @@ class UI:
                 WIDTH / 2,
                 HEIGHT * 5 / 8 + 32,
             )
+            coop_on = getattr(self.game, "coop", False)
+            self.draw_text(
+                f"C: Couch coop — {'ON (2 players)' if coop_on else 'OFF (1 player)'}",
+                18,
+                (160, 255, 160) if coop_on else (160, 160, 170),
+                WIDTH / 2,
+                HEIGHT * 5 / 8 + 58,
+            )
             self.draw_text("SPACE: Character select  |  S: Shop", 20, WHITE, WIDTH / 2, HEIGHT * 3 / 4)
             pygame.display.flip()
             self.game.clock.tick(FPS)
@@ -279,6 +335,8 @@ class UI:
                 if event.type == pygame.QUIT:
                     self.game.running = False
                 elif event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_c:
+                        self.game.coop = not getattr(self.game, "coop", False)
                     if event.key == pygame.K_SPACE:
                         if self.show_character_select():
                             return
@@ -346,8 +404,11 @@ class UI:
         high_mins = self.game.hightime // 60
         high_secs = self.game.hightime % 60
         
-        self.draw_text(f"Score: {self.game.player.score}   |   Time: {mins:02d}:{secs:02d}", 26, WHITE, WIDTH / 2, HEIGHT / 2)
-        self.draw_text(f"Level Reached: {self.game.player.level}", 22, YELLOW, WIDTH / 2, HEIGHT / 2 + 30)
+        players = self.game.get_players()
+        total = sum(p.score for p in players)
+        lv_line = " / ".join(f"P{p.seat + 1} Lv{p.level}" for p in players)
+        self.draw_text(f"Score: {total}   |   Time: {mins:02d}:{secs:02d}", 26, WHITE, WIDTH / 2, HEIGHT / 2)
+        self.draw_text(lv_line, 22, YELLOW, WIDTH / 2, HEIGHT / 2 + 30)
         self.draw_text(f"High Score: {self.game.highscore}   |   Max Time: {high_mins:02d}:{high_secs:02d}", 22, GREEN, WIDTH / 2, HEIGHT / 2 + 70)
         earned = getattr(self.game, "coins_earned_last_run", 0)
         self.draw_text(

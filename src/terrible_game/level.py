@@ -53,8 +53,9 @@ class SpawnManager:
     def spawn_entity(self, zone):
         angle = random.uniform(0, math.pi * 2)
         radius = random.uniform(900, 1100)
-        spawn_x = self.game.player.pos.x + math.cos(angle) * radius
-        spawn_y = self.game.player.pos.y + math.sin(angle) * radius
+        ax, ay = self.game.spawn_anchor()
+        spawn_x = ax + math.cos(angle) * radius
+        spawn_y = ay + math.sin(angle) * radius
         
         if random.random() < zone["drink_chance"]:
             if random.random() < 0.1:
@@ -86,8 +87,9 @@ class SpawnManager:
     def spawn_boss(self):
         angle = random.uniform(0, math.pi * 2)
         radius = random.uniform(900, 1100)
-        spawn_x = self.game.player.pos.x + math.cos(angle) * radius
-        spawn_y = self.game.player.pos.y + math.sin(angle) * radius
+        ax, ay = self.game.spawn_anchor()
+        spawn_x = ax + math.cos(angle) * radius
+        spawn_y = ay + math.sin(angle) * radius
         
         m = BossMonster(self.game, spawn_x, spawn_y)
         self.game.enemies.add(m)
@@ -96,10 +98,11 @@ class SpawnManager:
     def spawn_swarm_ring(self):
         num_enemies = 30
         radius = 1200
+        ax, ay = self.game.spawn_anchor()
         for i in range(num_enemies):
             angle = (math.pi * 2 / num_enemies) * i
-            spawn_x = self.game.player.pos.x + math.cos(angle) * radius
-            spawn_y = self.game.player.pos.y + math.sin(angle) * radius
+            spawn_x = ax + math.cos(angle) * radius
+            spawn_y = ay + math.sin(angle) * radius
             m = SwarmMonster(self.game, spawn_x, spawn_y)
             self.game.enemies.add(m)
             self.game.all_sprites.add(m)

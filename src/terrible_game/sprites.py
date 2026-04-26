@@ -58,7 +58,7 @@ class Powerup(pygame.sprite.Sprite):
         self.rect.center = (x, y)
 
 class Projectile(pygame.sprite.Sprite):
-    def __init__(self, x, y, target_dir, pierce_count, damage, gravity=None):
+    def __init__(self, x, y, target_dir, pierce_count, damage, gravity=None, owner=None):
         super().__init__()
         self.image = pygame.Surface((15, 15))
         self.image.fill(YELLOW)
@@ -70,6 +70,7 @@ class Projectile(pygame.sprite.Sprite):
         self.damage = damage
         self.hit_enemies = set()
         self.gravity = vec(gravity) if gravity is not None else None
+        self.owner = owner
 
     def update(self):
         if self.gravity is not None:
