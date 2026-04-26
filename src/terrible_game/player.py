@@ -1,5 +1,6 @@
 import pygame
 from .settings import *
+from .characters import starting_weapon_class
 import os
 
 vec = pygame.math.Vector2
@@ -20,20 +21,33 @@ class Player(pygame.sprite.Sprite):
         self.vel = vec(0, 0)
         
         self.score = 0
-        self.energy = 100
+        gup = self.game.global_upgrades
+        spd_lv = gup.get('speed', 0)
+        dmg_lv = gup.get('damage', 0)
+        en_lv = gup.get('energy', 0)
+        self.max_energy = 100 + 20 * en_lv
+        self.energy = self.max_energy
         
         self.powerup = None
         self.powerup_time = 0
+        self.teleport_lock_until = 0
 
         # XP and Upgrades
         self.level = 1
         self.xp = 0
         self.next_level_xp = 10
-        self.upgrade_projectiles = 1
-        self.upgrade_pierce = 1
-        self.upgrade_firerate = 1.0
-        self.upgrade_speed = 1.0
-        self.upgrade_damage = 1
+        
+        self.passive_stats = {
+            'speed_mult': 1.0 + 0.1 * spd_lv,
+            'firerate_mult': 1.0,
+            'damage_bonus': dmg_lv
+        }
+        # So starting weapons (e.g. TextbookOrbit) can use game.player in __init__ / get_stats
+        self.game.player = self
+        w_cls = starting_weapon_class(
+            getattr(self.game, "selected_character_index", 0)
+        )
+        self.weapons = [w_cls(self.game)]
 
     def gain_xp(self, amount):
         self.xp += amount
@@ -50,7 +64,7 @@ class Player(pygame.sprite.Sprite):
         self.vel = vec(0, 0)
         keys = pygame.key.get_pressed()
         
-        speed = PLAYER_SPEED * self.upgrade_speed
+        speed = PLAYER_SPEED * self.passive_stats.get('speed_mult', 1.0)
         if self.powerup == 'speed':
             speed *= 2
 

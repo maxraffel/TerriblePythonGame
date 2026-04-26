@@ -19,6 +19,20 @@ class Gem(pygame.sprite.Sprite):
     def update(self):
         pass
 
+class Coin(pygame.sprite.Sprite):
+    def __init__(self, x, y):
+        super().__init__()
+        self.image = pygame.Surface((8, 8))
+        self.image.set_colorkey((0, 0, 0))
+        pygame.draw.circle(self.image, (255, 220, 50), (4, 4), 3)
+        pygame.draw.circle(self.image, (200, 160, 20), (4, 4), 3, 1)
+        self.rect = self.image.get_rect()
+        self.pos = vec(x, y)
+        self.rect.center = self.pos
+
+    def update(self):
+        pass
+
 class EnergyDrink(pygame.sprite.Sprite):
     def __init__(self, x, y):
         super().__init__()
@@ -43,95 +57,8 @@ class Powerup(pygame.sprite.Sprite):
         self.rect = self.image.get_rect()
         self.rect.center = (x, y)
 
-class SleepMonster(pygame.sprite.Sprite):
-    def __init__(self, game, x, y):
-        super().__init__()
-        self.game = game
-        self.setup_image()
-        self.rect = self.image.get_rect()
-        self.pos = vec(x, y)
-        self.rect.center = self.pos
-        self.speed = random.uniform(1.5, 2.5)
-        self.health = 2
-
-    def setup_image(self):
-        try:
-            self.image = pygame.image.load(os.path.join("assets", "sleep_monster.png")).convert_alpha()
-            self.image = pygame.transform.scale(self.image, (50, 50))
-        except Exception:
-            self.image = pygame.Surface((40, 40))
-            self.image.fill(RED)
-
-    def take_damage(self, amount):
-        self.health -= amount
-        if self.health <= 0:
-            gem = Gem(self.pos.x, self.pos.y, 1)
-            self.game.gems.add(gem)
-            self.game.all_sprites.add(gem)
-            self.kill()
-            return True
-        return False
-
-    def update(self):
-        dir = self.game.player.pos - self.pos
-        if dir.length() > 0:
-            dir = dir.normalize()
-        self.pos += dir * self.speed
-        self.rect.center = self.pos
-
-class FastMonster(SleepMonster):
-    def __init__(self, game, x, y):
-        super().__init__(game, x, y)
-        self.speed = random.uniform(3.5, 4.5)
-        self.health = 1
-        
-    def setup_image(self):
-        self.image = pygame.Surface((30, 30))
-        self.image.fill((255, 128, 0))
-
-class TankMonster(SleepMonster):
-    def __init__(self, game, x, y):
-        super().__init__(game, x, y)
-        self.speed = random.uniform(0.8, 1.2)
-        self.health = 15
-        
-    def setup_image(self):
-        self.image = pygame.Surface((80, 80))
-        self.image.fill((100, 0, 0))
-
-class SwarmMonster(SleepMonster):
-    def __init__(self, game, x, y):
-        super().__init__(game, x, y)
-        self.speed = random.uniform(2.5, 3.5)
-        self.health = 1
-        
-    def setup_image(self):
-        self.image = pygame.Surface((20, 20))
-        self.image.fill((200, 0, 200))
-
-class FlyingMonster(SleepMonster):
-    def __init__(self, game, x, y):
-        super().__init__(game, x, y)
-        self.speed = random.uniform(2.0, 3.0)
-        self.time = random.uniform(0, math.pi * 2)
-        self.health = 2
-        
-    def setup_image(self):
-        self.image = pygame.Surface((40, 40))
-        self.image.fill((255, 0, 255))
-        
-    def update(self):
-        base_dir = self.game.player.pos - self.pos
-        if base_dir.length() > 0:
-            base_dir = base_dir.normalize()
-        ortho = vec(-base_dir.y, base_dir.x)
-        self.time += 0.1
-        wave = ortho * math.sin(self.time) * 2
-        self.pos += (base_dir * self.speed) + wave
-        self.rect.center = self.pos
-
 class Projectile(pygame.sprite.Sprite):
-    def __init__(self, x, y, target_dir, pierce_count, damage):
+    def __init__(self, x, y, target_dir, pierce_count, damage, gravity=None):
         super().__init__()
         self.image = pygame.Surface((15, 15))
         self.image.fill(YELLOW)
@@ -142,7 +69,42 @@ class Projectile(pygame.sprite.Sprite):
         self.pierce_count = pierce_count
         self.damage = damage
         self.hit_enemies = set()
+        self.gravity = vec(gravity) if gravity is not None else None
 
     def update(self):
+        if self.gravity is not None:
+            self.vel += self.gravity
         self.pos += self.vel
         self.rect.center = self.pos
+
+class Chest(pygame.sprite.Sprite):
+    def __init__(self, x, y):
+        super().__init__()
+        self.type = 'chest'
+        self.image = pygame.Surface((30, 30))
+        self.image.fill((150, 75, 0)) # Brown
+        pygame.draw.rect(self.image, (255, 215, 0), (0, 10, 30, 10)) # Gold band
+        self.rect = self.image.get_rect()
+        self.rect.center = (x, y)
+
+class TeleportPad(pygame.sprite.Sprite):
+    """Walk into the pad to warp to `dest` (other pad’s center) in the same pair."""
+
+    def __init__(self, x, y, dest):
+        super().__init__()
+        size = 44
+        self.image = pygame.Surface((size, size), pygame.SRCALPHA)
+        self.world_static = True
+        c = (90, 220, 255)
+        c2 = (200, 80, 255)
+        mid = size // 2
+        pygame.draw.circle(self.image, c, (mid, mid), mid - 1)
+        pygame.draw.circle(self.image, c2, (mid, mid), mid - 1, 3)
+        pygame.draw.circle(self.image, (255, 255, 255), (mid, mid), 6, 2)
+        self.rect = self.image.get_rect()
+        self.pos = vec(x, y)
+        self.dest = vec(dest)
+        self.rect.center = (int(self.pos.x), int(self.pos.y))
+
+    def update(self):
+        self.rect.center = (int(self.pos.x), int(self.pos.y))
