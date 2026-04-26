@@ -19,6 +19,7 @@ from .settings import (
 )
 from pygame.math import Vector2
 from .characters import CHARACTERS
+from .coop_helpers import all_players, camera_center, combined_score
 
 class UI:
     def __init__(self, game):
@@ -40,16 +41,41 @@ class UI:
         
         self.draw_text(f"Time: {mins:02d}:{secs:02d}", 26, WHITE, WIDTH / 2, 40)
         self.draw_text(f"Zone: {current_zone['name']}", 22, WHITE, WIDTH / 2, 70)
-        self.draw_text(f"Score: {self.game.player.score}", 22, WHITE, WIDTH / 2, 15)
-        e = self.game.player.energy
-        em = self.game.player.max_energy
         self.draw_text(
-            f"Energy: {int(e)}/{int(em)}",
+            f"Score: {combined_score(self.game)}",
             22,
-            GREEN if e > 0.3 * em else RED,
-            80,
+            WHITE,
+            WIDTH / 2,
             15,
         )
+        pls = all_players(self.game)
+        if len(pls) > 1:
+            e1, em1 = pls[0].energy, pls[0].max_energy
+            e2, em2 = pls[1].energy, pls[1].max_energy
+            self.draw_text(
+                f"P1 {int(e1)}/{int(em1)}",
+                18,
+                GREEN if e1 > 0.3 * em1 else RED,
+                95,
+                12,
+            )
+            self.draw_text(
+                f"P2 {int(e2)}/{int(em2)}",
+                18,
+                GREEN if e2 > 0.3 * em2 else RED,
+                95,
+                34,
+            )
+        else:
+            e = pls[0].energy
+            em = pls[0].max_energy
+            self.draw_text(
+                f"Energy: {int(e)}/{int(em)}",
+                22,
+                GREEN if e > 0.3 * em else RED,
+                80,
+                15,
+            )
         self.draw_text(
             f"Run coins: {self.game.session_coins}",
             18,
@@ -63,18 +89,21 @@ class UI:
         bar_height = 10
         x = (WIDTH - bar_width) / 2
         y = 5
-        fill = (self.game.player.xp / self.game.player.next_level_xp) * bar_width
+        lead = max(pls, key=lambda p: (p.level, p.xp))
+        fill = (lead.xp / lead.next_level_xp) * bar_width
         outline_rect = pygame.Rect(x, y, bar_width, bar_height)
         fill_rect = pygame.Rect(x, y, fill, bar_height)
         pygame.draw.rect(self.game.screen, BLUE, fill_rect)
         pygame.draw.rect(self.game.screen, WHITE, outline_rect, 2)
-        self.draw_text(f"Lv {self.game.player.level}", 18, WHITE, WIDTH - 50, 2)
+        self.draw_text(f"Lv {lead.level}", 18, WHITE, WIDTH - 50, 2)
 
-        if self.game.player.powerup:
-            time_left = max(0, (self.game.player.powerup_time - pygame.time.get_ticks()) // 1000)
-            name = "ESPRESSO SPEED" if self.game.player.powerup == 'speed' else "COFFEE SHIELD"
-            color = (255, 255, 0) if self.game.player.powerup == 'speed' else (0, 255, 255)
-            self.draw_text(f"{name}: {time_left}s", 26, color, WIDTH / 2, 110)
+        pwp = next((p for p in pls if p.powerup), None)
+        if pwp:
+            time_left = max(0, (pwp.powerup_time - pygame.time.get_ticks()) // 1000)
+            name = "ESPRESSO SPEED" if pwp.powerup == 'speed' else "COFFEE SHIELD"
+            color = (255, 255, 0) if pwp.powerup == 'speed' else (0, 255, 255)
+            tag = f" P{1 + pwp.player_id}" if len(pls) > 1 else ""
+            self.draw_text(f"{name}: {time_left}s{tag}", 26, color, WIDTH / 2, 110)
 
         self._draw_weapon_loadout()
         self._draw_minimap()
@@ -90,7 +119,7 @@ class UI:
 
         g = self.game
         sc = g.screen
-        p = g.player.pos
+        origin = camera_center(g)
         size = MINIMAP_SIZE
         margin = MINIMAP_MARGIN
         half = (size // 2) - 3
@@ -116,31 +145,32 @@ class UI:
             )
 
         for s in g.teleporters:
-            plot(self._sprite_world_pos(s) - p, (90, 210, 255), 2)
+            plot(self._sprite_world_pos(s) - origin, (90, 210, 255), 2)
         for s in g.gems:
-            plot(self._sprite_world_pos(s) - p, (50, 110, 255), 2)
+            plot(self._sprite_world_pos(s) - origin, (50, 110, 255), 2)
         for s in g.coins:
-            plot(self._sprite_world_pos(s) - p, (255, 210, 70), 2)
+            plot(self._sprite_world_pos(s) - origin, (255, 210, 70), 2)
         for s in g.items:
-            rel = self._sprite_world_pos(s) - p
+            rel = self._sprite_world_pos(s) - origin
             if getattr(s, "type", None) == "chest":
                 plot(rel, (170, 110, 55), 3)
             else:
                 plot(rel, (110, 220, 150), 2)
         for s in g.all_sprites:
             if isinstance(s, DroppedBomb):
-                plot(self._sprite_world_pos(s) - p, (255, 95, 40), 2)
+                plot(self._sprite_world_pos(s) - origin, (255, 95, 40), 2)
         for s in g.enemies:
-            plot(self._sprite_world_pos(s) - p, (255, 75, 75), 3)
+            plot(self._sprite_world_pos(s) - origin, (255, 75, 75), 3)
         for s in g.enemy_projectiles:
-            plot(self._sprite_world_pos(s) - p, (255, 180, 130), 2)
+            plot(self._sprite_world_pos(s) - origin, (255, 180, 130), 2)
 
-        pygame.draw.circle(sc, (255, 255, 120), (cx, cy), 4)
-        pygame.draw.circle(sc, (40, 40, 50), (cx, cy), 4, 1)
+        for pl in all_players(g):
+            col = (255, 255, 120) if pl.player_id == 0 else (120, 255, 200)
+            plot(pl.pos - origin, col, 4)
 
         title = pygame.font.Font(self.font_name, 12)
         sc.blit(
-            title.render("Minimap (relative to you)", True, (150, 155, 170)),
+            title.render("Minimap (party center)", True, (150, 155, 170)),
             (ax + 4, ay + 4),
         )
         key = pygame.font.Font(self.font_name, 9)
@@ -177,6 +207,10 @@ class UI:
         self.game.screen.blit(overlay, (0, 0))
 
         self.draw_text("LEVEL UP!", 64, YELLOW, WIDTH / 2, HEIGHT / 4 - 50)
+        lp = getattr(self.game, "leveling_player", None)
+        if lp and len(getattr(self.game, "all_players", [])) > 1:
+            who = "Player 1" if lp.player_id == 0 else "Player 2"
+            self.draw_text(f"{who} picked up enough XP!", 20, CYAN, WIDTH / 2, HEIGHT / 4 - 12)
         self.draw_text("Press 1, 2, or 3 to select an upgrade", 22, WHITE, WIDTH / 2, HEIGHT / 4 + 30)
 
         for i, option in enumerate(self.game.upgrade_options):
@@ -263,8 +297,16 @@ class UI:
         while self.game.running:
             self.game.screen.fill(BGCOLOR)
             self.draw_text("MARIO'S ALL-NIGHTER: SURVIVORS", 48, WHITE, WIDTH / 2, HEIGHT / 4)
-            self.draw_text("WASD to move! You will shoot automatically.", 22, WHITE, WIDTH / 2, HEIGHT / 2)
+            self.draw_text("WASD: P1  |  Arrows: P2 (co-op)  |  Auto-fire weapons.", 22, WHITE, WIDTH / 2, HEIGHT / 2)
             self.draw_text("Collect blue gems to level up and gold coins for the shop.", 22, YELLOW, WIDTH / 2, HEIGHT * 5 / 8)
+            coop_on = getattr(self.game, "coop_mode", False)
+            self.draw_text(
+                f"Co-op: {'ON (2 players)' if coop_on else 'OFF (1 player)'} — press C to toggle",
+                20,
+                (120, 255, 180) if coop_on else (180, 180, 200),
+                WIDTH / 2,
+                HEIGHT * 5 / 8 - 28,
+            )
             self.draw_text(
                 f"Your coins: {self.game.global_coins}",
                 20,
@@ -279,6 +321,10 @@ class UI:
                 if event.type == pygame.QUIT:
                     self.game.running = False
                 elif event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_c:
+                        self.game.coop_mode = not getattr(
+                            self.game, "coop_mode", False
+                        )
                     if event.key == pygame.K_SPACE:
                         if self.show_character_select():
                             return
@@ -346,8 +392,16 @@ class UI:
         high_mins = self.game.hightime // 60
         high_secs = self.game.hightime % 60
         
-        self.draw_text(f"Score: {self.game.player.score}   |   Time: {mins:02d}:{secs:02d}", 26, WHITE, WIDTH / 2, HEIGHT / 2)
-        self.draw_text(f"Level Reached: {self.game.player.level}", 22, YELLOW, WIDTH / 2, HEIGHT / 2 + 30)
+        pls = all_players(self.game)
+        mx_lv = max(p.level for p in pls)
+        self.draw_text(
+            f"Score: {combined_score(self.game)}   |   Time: {mins:02d}:{secs:02d}",
+            26,
+            WHITE,
+            WIDTH / 2,
+            HEIGHT / 2,
+        )
+        self.draw_text(f"Level Reached: {mx_lv}", 22, YELLOW, WIDTH / 2, HEIGHT / 2 + 30)
         self.draw_text(f"High Score: {self.game.highscore}   |   Max Time: {high_mins:02d}:{high_secs:02d}", 22, GREEN, WIDTH / 2, HEIGHT / 2 + 70)
         earned = getattr(self.game, "coins_earned_last_run", 0)
         self.draw_text(
