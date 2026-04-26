@@ -1,8 +1,8 @@
 import pygame
 import random
 import math
-from sprites import EnergyDrink, SleepMonster, FastMonster, FlyingMonster, TankMonster, SwarmMonster, Powerup
-from settings import *
+from .sprites import EnergyDrink, SleepMonster, FastMonster, FlyingMonster, TankMonster, SwarmMonster, Powerup
+from .settings import *
 
 class SpawnManager:
     def __init__(self, game):

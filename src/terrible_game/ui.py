@@ -1,5 +1,5 @@
 import pygame
-from settings import *
+from .settings import *
 
 class UI:
     def __init__(self, game):

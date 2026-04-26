@@ -3,11 +3,11 @@ import json
 import os
 import math
 import random
-from settings import *
-from player import Player
-from sprites import Projectile
-from level import SpawnManager
-from ui import UI
+from .settings import *
+from .player import Player
+from .sprites import Projectile
+from .level import SpawnManager
+from .ui import UI
 
 vec = pygame.math.Vector2
 
