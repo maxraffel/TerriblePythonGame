@@ -20,6 +20,20 @@ from .settings import (
 from pygame.math import Vector2
 from .characters import CHARACTERS
 
+
+def _minimap_plotter(screen, cx, cy, half, scale):
+    def plot(rel, color, radius=3):
+        d = Vector2(rel.x, rel.y) * scale
+        lim = d.length()
+        if lim > half - radius:
+            if lim < 0.01:
+                return
+            d = d * ((half - radius) / lim)
+        pygame.draw.circle(screen, color, (int(cx + d.x), int(cy + d.y)), radius)
+
+    return plot
+
+
 class UI:
     def __init__(self, game):
         self.game = game
@@ -104,36 +118,8 @@ class UI:
         pygame.draw.rect(sc, (70, 75, 95), (ax, ay, size, size), 2, border_radius=4)
         pygame.draw.circle(sc, (40, 44, 58), (cx, cy), half, 1)
 
-        def plot(rel, color, radius=3):
-            d = Vector2(rel.x, rel.y) * scale
-            L = d.length()
-            if L > half - radius:
-                if L < 0.01:
-                    return
-                d = d * ((half - radius) / L)
-            pygame.draw.circle(
-                sc, color, (int(cx + d.x), int(cy + d.y)), radius
-            )
-
-        for s in g.teleporters:
-            plot(self._sprite_world_pos(s) - p, (90, 210, 255), 2)
-        for s in g.gems:
-            plot(self._sprite_world_pos(s) - p, (50, 110, 255), 2)
-        for s in g.coins:
-            plot(self._sprite_world_pos(s) - p, (255, 210, 70), 2)
-        for s in g.items:
-            rel = self._sprite_world_pos(s) - p
-            if getattr(s, "type", None) == "chest":
-                plot(rel, (170, 110, 55), 3)
-            else:
-                plot(rel, (110, 220, 150), 2)
-        for s in g.all_sprites:
-            if isinstance(s, DroppedBomb):
-                plot(self._sprite_world_pos(s) - p, (255, 95, 40), 2)
-        for s in g.enemies:
-            plot(self._sprite_world_pos(s) - p, (255, 75, 75), 3)
-        for s in g.enemy_projectiles:
-            plot(self._sprite_world_pos(s) - p, (255, 180, 130), 2)
+        plot = _minimap_plotter(sc, cx, cy, half, scale)
+        self._minimap_plot_world_entities(plot, g, p, DroppedBomb)
 
         pygame.draw.circle(sc, (255, 255, 120), (cx, cy), 4)
         pygame.draw.circle(sc, (40, 40, 50), (cx, cy), 4, 1)
@@ -152,6 +138,25 @@ class UI:
             ),
             (ax + 4, ay + size - 15),
         )
+
+    def _minimap_plot_world_entities(self, plot, g, player_pos, dropped_bomb_cls):
+        for s in g.teleporters:
+            plot(self._sprite_world_pos(s) - player_pos, (90, 210, 255), 2)
+        for s in g.gems:
+            plot(self._sprite_world_pos(s) - player_pos, (50, 110, 255), 2)
+        for s in g.coins:
+            plot(self._sprite_world_pos(s) - player_pos, (255, 210, 70), 2)
+        for s in g.items:
+            rel = self._sprite_world_pos(s) - player_pos
+            chest = getattr(s, "type", None) == "chest"
+            plot(rel, (170, 110, 55) if chest else (110, 220, 150), 3 if chest else 2)
+        for s in g.all_sprites:
+            if isinstance(s, dropped_bomb_cls):
+                plot(self._sprite_world_pos(s) - player_pos, (255, 95, 40), 2)
+        for s in g.enemies:
+            plot(self._sprite_world_pos(s) - player_pos, (255, 75, 75), 3)
+        for s in g.enemy_projectiles:
+            plot(self._sprite_world_pos(s) - player_pos, (255, 180, 130), 2)
 
     def _draw_weapon_loadout(self):
         font = pygame.font.Font(self.font_name, 16)

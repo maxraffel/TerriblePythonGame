@@ -5,9 +5,14 @@ import math
 import random
 from .settings import *
 from .player import Player
-from .sprites import Projectile, TeleportPad
+from .sprites import TeleportPad
 from .level import SpawnManager
 from .ui import UI
+from .gameplay_handlers import (
+    collect_upgrade_options,
+    finalize_upgrade_choices,
+    handle_collisions,
+)
 
 vec = pygame.math.Vector2
 
@@ -102,70 +107,8 @@ class Game:
 
     def trigger_level_up(self):
         self.is_leveling_up = True
-        
-        from .weapons import (
-            CalculatorLaser,
-            CoffeeBomb,
-            MarkerSpray,
-            NotebookMissiles,
-            PencilWand,
-            RulerWave,
-            StaplerBurst,
-            StickyNotes,
-            TextbookOrbit,
-            USBBoomerang,
-        )
-        all_weapons = [
-            PencilWand,
-            CoffeeBomb,
-            TextbookOrbit,
-            MarkerSpray,
-            StaplerBurst,
-            CalculatorLaser,
-            USBBoomerang,
-            StickyNotes,
-            NotebookMissiles,
-            RulerWave,
-        ]
-        owned_weapons = {type(w): w for w in self.player.weapons}
-        
-        possible_upgrades = []
-        
-        for w_class in all_weapons:
-            if w_class not in owned_weapons and len(self.player.weapons) < MAX_WEAPON_SLOTS:
-                possible_upgrades.append({
-                    "title": f"New: {w_class.name}",
-                    "desc": w_class.description,
-                    "action": lambda wc=w_class: self.player.weapons.append(wc(self))
-                })
-                
-        for w in self.player.weapons:
-            if w.level < w.max_level:
-                possible_upgrades.append({
-                    "title": f"Upgrade: {w.name}",
-                    "desc": f"Increase {w.name} to Level {w.level + 1}",
-                    "action": lambda w=w: setattr(w, 'level', w.level + 1)
-                })
-                
-        possible_upgrades.extend([
-            {
-                "title": "Caffeine Rush",
-                "desc": "+20% Fire Rate",
-                "action": lambda: self.player.passive_stats.update({'firerate_mult': self.player.passive_stats['firerate_mult'] * 0.8})
-            },
-            {
-                "title": "All-Nighter",
-                "desc": "+20% Move Speed",
-                "action": lambda: self.player.passive_stats.update({'speed_mult': self.player.passive_stats['speed_mult'] * 1.2})
-            }
-        ])
-        
-        if len(possible_upgrades) > 3:
-            chosen = random.sample(possible_upgrades, 3)
-        else:
-            chosen = possible_upgrades
-            
-        self.upgrade_options = [(opt["title"], opt["desc"], opt["action"]) for opt in chosen]
+        possible = collect_upgrade_options(self)
+        self.upgrade_options = finalize_upgrade_choices(possible, random)
 
     def select_upgrade(self, index):
         if 0 <= index < len(self.upgrade_options):
@@ -213,7 +156,7 @@ class Game:
         self.all_sprites.update()
         
         self.cleanup_sprites()
-        self.handle_collisions()
+        handle_collisions(self)
 
         self.player.energy -= ENERGY_DRAIN_PER_FRAME
         if self.player.energy <= 0:
@@ -226,89 +169,6 @@ class Game:
             ):
                 if self.player.pos.distance_to(sprite.pos) > 2500:
                     sprite.kill()
-
-    def handle_collisions(self):
-        for proj in self.projectiles:
-            hits = pygame.sprite.spritecollide(proj, self.enemies, False)
-            for enemy in hits:
-                if enemy not in proj.hit_enemies:
-                    proj.hit_enemies.add(enemy)
-                    if (
-                        hasattr(enemy, "apply_knockback")
-                        and proj.vel.length() > 0.25
-                    ):
-                        enemy.apply_knockback(proj.vel, magnitude=KNOCKBACK_BASE * 0.9)
-                    killed = enemy.take_damage(proj.damage)
-                    if killed:
-                        self.player.score += 50
-                    proj.pierce_count -= 1
-                    if proj.pierce_count <= 0:
-                        proj.kill()
-                        break
-
-        gem_hits = pygame.sprite.spritecollide(self.player, self.gems, True)
-        for gem in gem_hits:
-            self.player.gain_xp(gem.value)
-
-        coin_hits = pygame.sprite.spritecollide(self.player, self.coins, True)
-        for _ in coin_hits:
-            self.session_coins += 1
-
-        item_hits = pygame.sprite.spritecollide(self.player, self.items, True)
-        for item in item_hits:
-            if hasattr(item, 'type'):
-                if item.type == 'chest':
-                    self.player.score += 200
-                    upgradable_weapons = [w for w in self.player.weapons if w.level < w.max_level]
-                    if upgradable_weapons:
-                        w = random.choice(upgradable_weapons)
-                        w.level += 1
-                        print(f"Chest upgraded {w.name} to level {w.level}!")
-                else:
-                    self.player.score += 50
-                    self.player.powerup = item.type
-                    self.player.powerup_time = pygame.time.get_ticks() + 10000
-            else:
-                self.player.score += 10
-                self.player.energy = min(
-                    self.player.max_energy, self.player.energy + 20
-                )
-
-        enemy_hits = pygame.sprite.spritecollide(self.player, self.enemies, False)
-        if enemy_hits:
-            for enemy in enemy_hits:
-                if self.player.powerup == 'shield':
-                    enemy.take_damage(999)
-                    self.player.score += 50
-                else:
-                    self.player.energy -= PLAYER_ENEMY_TOUCH_DAMAGE
-                    enemy.kill()
-
-        enemy_proj_hits = pygame.sprite.spritecollide(self.player, self.enemy_projectiles, True)
-        if enemy_proj_hits:
-            for proj in enemy_proj_hits:
-                if self.player.powerup != 'shield':
-                    self.player.energy -= ENEMY_BULLET_DAMAGE
-
-        self._handle_teleports()
-
-    def _handle_teleports(self):
-        now = pygame.time.get_ticks()
-        if now < self.player.teleport_lock_until:
-            return
-        hits = pygame.sprite.spritecollide(self.player, self.teleporters, False)
-        if not hits:
-            return
-        pad = hits[0]
-        to = pad.dest
-        nudge = to - pad.pos
-        if nudge.length() < 0.01:
-            nudge = vec(1.0, 0.0)
-        else:
-            nudge = nudge.normalize() * TELEPORT_NUDGE
-        self.player.pos = to + nudge
-        self.player.rect.center = (int(self.player.pos.x), int(self.player.pos.y))
-        self.player.teleport_lock_until = now + TELEPORT_COOLDOWN_MS
 
     def draw(self):
         current_zone = self.spawn_manager.get_current_zone()

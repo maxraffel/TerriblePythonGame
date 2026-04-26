@@ -37,43 +37,27 @@ class PencilWand(Weapon):
     def update(self):
         now = pygame.time.get_ticks()
         count, pierce, damage, fire_rate = self.get_stats()
-        
-        if now - self.last_shot > fire_rate:
-            if not self.game.enemies:
-                return
-            
-            nearest_enemy = None
-            min_dist = float('inf')
-            for enemy in self.game.enemies:
-                dist = self.game.player.pos.distance_to(enemy.pos)
-                if dist < min_dist:
-                    min_dist = dist
-                    nearest_enemy = enemy
-                    
-            if nearest_enemy:
-                self.last_shot = now
-                base_dir = (nearest_enemy.pos - self.game.player.pos)
-                if base_dir.length() > 0:
-                    base_dir = base_dir.normalize()
-                else:
-                    base_dir = vec(1, 0)
-                
-                spread_angle = 15
-                
-                for i in range(count):
-                    angle_offset = (i - (count - 1) / 2) * spread_angle
-                    dir = base_dir.rotate(angle_offset)
-                    grav = vec(0, PENCIL_GRAVITY)
-                    p = Projectile(
-                        self.game.player.rect.centerx,
-                        self.game.player.rect.centery,
-                        dir,
-                        pierce,
-                        damage,
-                        gravity=grav,
-                    )
-                    self.game.projectiles.add(p)
-                    self.game.all_sprites.add(p)
+
+        if now - self.last_shot <= fire_rate or not self.game.enemies:
+            return
+
+        nearest_enemy = _nearest_enemy(self.game)
+        if not nearest_enemy:
+            return
+
+        self.last_shot = now
+        base_dir = nearest_enemy.pos - self.game.player.pos
+        base_dir = base_dir.normalize() if base_dir.length() > 0 else vec(1, 0)
+        spread_angle = 15
+        grav = vec(0, PENCIL_GRAVITY)
+        g = self.game
+        cx, cy = g.player.rect.centerx, g.player.rect.centery
+        for i in range(count):
+            angle_offset = (i - (count - 1) / 2) * spread_angle
+            d = base_dir.rotate(angle_offset)
+            p = Projectile(cx, cy, d, pierce, damage, gravity=grav)
+            g.projectiles.add(p)
+            g.all_sprites.add(p)
 
 class BombExplosion(pygame.sprite.Sprite):
     def __init__(self, game, x, y, radius, damage):

@@ -61,24 +61,26 @@ class Player(pygame.sprite.Sprite):
         if self.powerup and pygame.time.get_ticks() > self.powerup_time:
             self.powerup = None
 
-        self.vel = vec(0, 0)
         keys = pygame.key.get_pressed()
-        
-        speed = PLAYER_SPEED * self.passive_stats.get('speed_mult', 1.0)
-        if self.powerup == 'speed':
+        speed = PLAYER_SPEED * self.passive_stats.get("speed_mult", 1.0)
+        if self.powerup == "speed":
             speed *= 2
-
-        if keys[pygame.K_LEFT] or keys[pygame.K_a]:
-            self.vel.x = -speed
-        if keys[pygame.K_RIGHT] or keys[pygame.K_d]:
-            self.vel.x = speed
-        if keys[pygame.K_UP] or keys[pygame.K_w]:
-            self.vel.y = -speed
-        if keys[pygame.K_DOWN] or keys[pygame.K_s]:
-            self.vel.y = speed
-
-        if self.vel.length() > 0:
-            self.vel = self.vel.normalize() * speed
+        self.vel = _movement_velocity(keys, speed)
 
         self.pos += self.vel
         self.rect.center = self.pos
+
+
+def _movement_velocity(keys, speed):
+    v = vec(0, 0)
+    if keys[pygame.K_LEFT] or keys[pygame.K_a]:
+        v.x = -speed
+    if keys[pygame.K_RIGHT] or keys[pygame.K_d]:
+        v.x = speed
+    if keys[pygame.K_UP] or keys[pygame.K_w]:
+        v.y = -speed
+    if keys[pygame.K_DOWN] or keys[pygame.K_s]:
+        v.y = speed
+    if v.length() > 0:
+        v = v.normalize() * speed
+    return v
