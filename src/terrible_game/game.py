@@ -231,6 +231,9 @@ class Game:
                     sprite.kill()
 
     def handle_collisions(self):
+        now = pygame.time.get_ticks()
+        dash_iframes = now < self.player.dash_until
+
         for proj in self.projectiles:
             hits = pygame.sprite.spritecollide(proj, self.enemies, False)
             for enemy in hits:
@@ -277,21 +280,24 @@ class Game:
                     self.player.max_energy, self.player.energy + 20
                 )
 
-        enemy_hits = pygame.sprite.spritecollide(self.player, self.enemies, False)
-        if enemy_hits:
-            for enemy in enemy_hits:
-                if self.player.powerup == 'shield':
-                    enemy.take_damage(999)
-                    self.player.score += 50
-                else:
-                    self.player.energy -= PLAYER_ENEMY_TOUCH_DAMAGE
-                    enemy.kill()
+        if not dash_iframes:
+            enemy_hits = pygame.sprite.spritecollide(self.player, self.enemies, False)
+            if enemy_hits:
+                for enemy in enemy_hits:
+                    if self.player.powerup == 'shield':
+                        enemy.take_damage(999)
+                        self.player.score += 50
+                    else:
+                        self.player.energy -= PLAYER_ENEMY_TOUCH_DAMAGE
+                        enemy.kill()
 
-        enemy_proj_hits = pygame.sprite.spritecollide(self.player, self.enemy_projectiles, True)
-        if enemy_proj_hits:
-            for proj in enemy_proj_hits:
-                if self.player.powerup != 'shield':
-                    self.player.energy -= ENEMY_BULLET_DAMAGE
+            enemy_proj_hits = pygame.sprite.spritecollide(
+                self.player, self.enemy_projectiles, True
+            )
+            if enemy_proj_hits:
+                for proj in enemy_proj_hits:
+                    if self.player.powerup != 'shield':
+                        self.player.energy -= ENEMY_BULLET_DAMAGE
 
         self._handle_teleports()
 
