@@ -50,6 +50,16 @@ class UI:
             80,
             15,
         )
+        now = pygame.time.get_ticks()
+        pl = self.game.player
+        if pl.dash_frames_left > 0:
+            dash_txt, dash_color = "Dash: Active", CYAN
+        elif now < pl.dash_cooldown_until:
+            rem_s = (pl.dash_cooldown_until - now) / 1000.0
+            dash_txt, dash_color = (f"Dash: {rem_s:.1f}s", (255, 170, 90))
+        else:
+            dash_txt, dash_color = "Dash: Ready", GREEN
+        self.draw_text(dash_txt, 18, dash_color, 80, 44)
         self.draw_text(
             f"Run coins: {self.game.session_coins}",
             18,
