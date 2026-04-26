@@ -32,6 +32,13 @@ class Player(pygame.sprite.Sprite):
         self.powerup_time = 0
         self.teleport_lock_until = 0
 
+        self.dash_frames_left = 0
+        self.dash_vel = vec(0, 0)
+        self.dash_cooldown_until = 0
+        self.invulnerable_until = 0
+        self._prev_lshift = False
+        self._last_move_dir = vec(1.0, 0.0)
+
         # XP and Upgrades
         self.level = 1
         self.xp = 0
@@ -57,25 +64,63 @@ class Player(pygame.sprite.Sprite):
             self.next_level_xp = int(self.next_level_xp * 1.5)
             self.game.trigger_level_up()
 
+    def _attempt_dash(self, now, raw_move: vec):
+        if self.dash_frames_left > 0:
+            return
+        if now < self.dash_cooldown_until:
+            return
+        d = vec(raw_move.x, raw_move.y)
+        if d.length() < 0.01:
+            d = self._last_move_dir
+        if d.length() < 0.01:
+            return
+        d = d.normalize()
+        speed = PLAYER_SPEED * self.passive_stats.get('speed_mult', 1.0)
+        if self.powerup == 'speed':
+            speed *= 2
+        self.dash_vel = d * (speed * DASH_SPEED_MULT)
+        self.dash_frames_left = DASH_DURATION_FRAMES
+        self.dash_cooldown_until = now + DASH_COOLDOWN_MS
+        self.invulnerable_until = now + DASH_IFRAMES_MS
+
     def update(self):
-        if self.powerup and pygame.time.get_ticks() > self.powerup_time:
+        now = pygame.time.get_ticks()
+        if self.powerup and now > self.powerup_time:
             self.powerup = None
 
-        self.vel = vec(0, 0)
         keys = pygame.key.get_pressed()
-        
+        raw_move = vec(0, 0)
+        if keys[pygame.K_LEFT] or keys[pygame.K_a]:
+            raw_move.x -= 1
+        if keys[pygame.K_RIGHT] or keys[pygame.K_d]:
+            raw_move.x += 1
+        if keys[pygame.K_UP] or keys[pygame.K_w]:
+            raw_move.y -= 1
+        if keys[pygame.K_DOWN] or keys[pygame.K_s]:
+            raw_move.y += 1
+        if raw_move.length() > 0.01:
+            self._last_move_dir = raw_move.normalize()
+
+        lshift = keys[pygame.K_LSHIFT]
+        if lshift and not self._prev_lshift:
+            self._attempt_dash(now, raw_move)
+        self._prev_lshift = bool(lshift)
+
+        if self.dash_frames_left > 0:
+            self.pos += self.dash_vel
+            self.dash_frames_left -= 1
+            self.rect.center = self.pos
+            return
+
+        self.vel = vec(0, 0)
         speed = PLAYER_SPEED * self.passive_stats.get('speed_mult', 1.0)
         if self.powerup == 'speed':
             speed *= 2
 
-        if keys[pygame.K_LEFT] or keys[pygame.K_a]:
-            self.vel.x = -speed
-        if keys[pygame.K_RIGHT] or keys[pygame.K_d]:
-            self.vel.x = speed
-        if keys[pygame.K_UP] or keys[pygame.K_w]:
-            self.vel.y = -speed
-        if keys[pygame.K_DOWN] or keys[pygame.K_s]:
-            self.vel.y = speed
+        if raw_move.x:
+            self.vel.x = raw_move.x * speed
+        if raw_move.y:
+            self.vel.y = raw_move.y * speed
 
         if self.vel.length() > 0:
             self.vel = self.vel.normalize() * speed

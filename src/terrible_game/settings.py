@@ -5,6 +5,11 @@ TITLE = "Mario's All-Nighter: Survivors"
 
 # Player default properties
 PLAYER_SPEED = 5
+# Dash: burst move for DASH_DURATION_FRAMES; Left Shift (edge) in Player.update
+DASH_SPEED_MULT = 3.2
+DASH_DURATION_FRAMES = 9
+DASH_COOLDOWN_MS = 850
+DASH_IFRAMES_MS = 200
 PROJECTILE_SPEED = 15
 FIRE_RATE = 500 # ms between shots
 PROJECTILE_DAMAGE = 1

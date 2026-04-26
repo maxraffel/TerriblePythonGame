@@ -263,7 +263,13 @@ class UI:
         while self.game.running:
             self.game.screen.fill(BGCOLOR)
             self.draw_text("MARIO'S ALL-NIGHTER: SURVIVORS", 48, WHITE, WIDTH / 2, HEIGHT / 4)
-            self.draw_text("WASD to move! You will shoot automatically.", 22, WHITE, WIDTH / 2, HEIGHT / 2)
+            self.draw_text(
+                "WASD to move! Left Shift to dash (brief invulnerability). Auto-fire.",
+                22,
+                WHITE,
+                WIDTH / 2,
+                HEIGHT / 2,
+            )
             self.draw_text("Collect blue gems to level up and gold coins for the shop.", 22, YELLOW, WIDTH / 2, HEIGHT * 5 / 8)
             self.draw_text(
                 f"Your coins: {self.game.global_coins}",

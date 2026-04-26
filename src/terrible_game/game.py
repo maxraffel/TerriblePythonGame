@@ -274,20 +274,28 @@ class Game:
                     self.player.max_energy, self.player.energy + 20
                 )
 
+        now = pygame.time.get_ticks()
+        player_invuln = now < self.player.invulnerable_until
+
         enemy_hits = pygame.sprite.spritecollide(self.player, self.enemies, False)
         if enemy_hits:
             for enemy in enemy_hits:
                 if self.player.powerup == 'shield':
                     enemy.take_damage(999)
                     self.player.score += 50
+                elif player_invuln:
+                    continue
                 else:
                     self.player.energy -= PLAYER_ENEMY_TOUCH_DAMAGE
                     enemy.kill()
 
-        enemy_proj_hits = pygame.sprite.spritecollide(self.player, self.enemy_projectiles, True)
+        proj_kill = not player_invuln
+        enemy_proj_hits = pygame.sprite.spritecollide(
+            self.player, self.enemy_projectiles, proj_kill
+        )
         if enemy_proj_hits:
             for proj in enemy_proj_hits:
-                if self.player.powerup != 'shield':
+                if self.player.powerup != 'shield' and not player_invuln:
                     self.player.energy -= ENEMY_BULLET_DAMAGE
 
         self._handle_teleports()
